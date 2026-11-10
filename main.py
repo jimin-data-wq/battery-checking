@@ -42,7 +42,7 @@ html, body, [class*="css"] {font-family:'Noto Sans KR',sans-serif;}
 [data-testid="stMetricLabel"] {font-size: .88rem !important; white-space: normal !important;}
 .hero-title {font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.3; word-break: keep-all;}
 .hero-sub {line-height: 1.65; word-break: keep-all;}
-.panel, .panel-soft {min-width: 0; overflow-wrap: anywhere;}
+.panel, .panel-soft {min-width: 0; overflow-wrap: anywhere;}\ndiv[data-testid="stVerticalBlock"] {min-width: 0;}\n[data-testid="stMarkdownContainer"] {min-width: 0;}
 .stApp {
     background: radial-gradient(ellipse at 50% 0%, #16294b 0%, #0b1427 48%, #080f1e 100%);
     color: #edf5ff;
@@ -200,16 +200,13 @@ if page == "배터리 상태 확인":
 
     left, center, right = st.columns([0.92, 1.55, 0.92], gap="medium")
     with left:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.markdown("#### 📋 사용 정보")
         st.markdown(f"**사용 기간**  \n{months}개월")
         st.markdown(f"**예상 누적 충·방전**  \n{total_cycles:,.0f}회")
         st.markdown(f"**주변 온도**  \n{ambient_temp} ℃")
         st.markdown(f"**안전 위험도**  \n{risk}")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with center:
-        st.markdown('<div class="panel" style="text-align:center;padding:12px 18px 18px 18px;">', unsafe_allow_html=True)
         if IMAGE_PATH.exists():
             st.image(str(IMAGE_PATH), use_container_width=True)
         else:
@@ -218,10 +215,8 @@ if page == "배터리 상태 확인":
         st.markdown(f"<div style='font-size:1.25rem;font-weight:800'>{state_icon} {state}</div>", unsafe_allow_html=True)
         st.markdown(f"<div style='font-size:1rem;margin-top:7px'>{message}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='muted' style='margin-top:9px'>{advice}</div>", unsafe_allow_html=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
 
     with right:
-        st.markdown('<div class="panel" style="text-align:center;">', unsafe_allow_html=True)
         st.markdown("#### 배터리 건강 점수")
         gauge_color = "#59e2b3" if predicted_soh >= 80 else ("#ffc66d" if predicted_soh >= 60 else "#ff7787")
         gauge = go.Figure(go.Indicator(
@@ -243,7 +238,6 @@ if page == "배터리 상태 확인":
         gauge.update_layout(height=220, margin=dict(l=12,r=12,t=8,b=8), paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(gauge, use_container_width=True, config={"displayModeBar":False})
         st.markdown("<div class='muted'>SOH = 처음 용량 대비 현재 용량의 비율</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("")
     metric1, metric2, metric3 = st.columns(3)
@@ -252,7 +246,6 @@ if page == "배터리 상태 확인":
     metric3.metric("안전 징후 입력", "있음" if critical or caution else "없음")
 
     # Simple trend chart
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.markdown("#### 📉 사용 횟수에 따른 건강 상태 예상")
     st.caption("현재 사용 온도를 가정했을 때의 모델 예측 흐름입니다. 실험 데이터의 범위를 넘어서는 경우 실제 결과와 차이가 클 수 있어요.")
     max_x = max(cycle_max, model_cycle)
@@ -276,7 +269,6 @@ if page == "배터리 상태 확인":
     st.plotly_chart(chart,use_container_width=True,config={"displayModeBar":False})
     if total_cycles > cycle_max:
         st.warning(f"입력한 예상 누적 횟수({total_cycles:,.0f}회)가 NASA 실험 데이터의 최대 사이클({cycle_max:,.0f}회)을 넘어섰어요. 따라서 현재 점수는 실험 범위의 끝값으로 계산한 참고치이며, 정확한 외삽 예측이 아닙니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("#### 💡 지금 실천하면 좋은 관리 방법")
     tips = [
@@ -298,13 +290,11 @@ else:
     st.markdown('<div class="hero-title">NASA 데이터로 배터리 노화를 알아봐요</div>', unsafe_allow_html=True)
     st.markdown('<div class="hero-sub">어려운 실험 데이터를 쉽게 풀어서, 앱이 어떤 근거로 예측하는지 설명합니다.</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.markdown("### 🧪 NASA는 어떤 실험을 했을까요?")
     st.write(
         "NASA 연구진은 리튬이온 배터리 셀을 여러 번 충전하고 방전하면서 성능이 어떻게 달라지는지 관찰했어요. "
         "반복 횟수, 주변 온도, 방전할 때 측정한 용량 등을 기록해 배터리가 시간이 지나며 얼마나 약해지는지 살펴본 데이터입니다."
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
     a,b,c = st.columns(3)
     a.metric("데이터 기록 수", f"{len(data):,}개")
@@ -327,11 +317,9 @@ else:
     st.dataframe(explanation,use_container_width=True,hide_index=True)
 
     st.markdown("### 🔋 SOH는 어떻게 계산했을까요?")
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.write("SOH는 State of Health의 약자로, 배터리가 처음과 비교해 얼마나 많은 용량을 유지하고 있는지 나타내는 지표예요.")
     st.latex(r"SOH(\%) = \frac{현재\ 방전\ 용량}{초기\ 방전\ 용량} \times 100")
     st.write("예를 들어 처음 용량이 2.0Ah였는데 지금 1.6Ah만 저장·방전할 수 있다면, SOH는 80%예요. 이 앱에서는 각 배터리의 처음 5회 기록 용량 중앙값을 초기 용량으로 사용했어요.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("### 📉 실험에서는 어떤 변화가 보일까요?")
     by_cycle = data.copy()
