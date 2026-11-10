@@ -25,6 +25,24 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] {font-family:'Noto Sans KR',sans-serif;}
+.stMarkdown, .stMarkdown p, .stMarkdown li, label, [data-testid="stMetricLabel"] {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+}
+.stMarkdown p {margin-bottom: .55rem;}
+[data-testid="column"] {min-width: 0 !important;}
+[data-testid="stSidebar"] .stRadio label,
+[data-testid="stSidebar"] .stSlider label,
+[data-testid="stSidebar"] .stCheckbox label {
+    white-space: normal !important;
+    line-height: 1.45 !important;
+}
+[data-testid="stMetricValue"] {font-size: clamp(1.15rem, 2vw, 1.8rem) !important;}
+[data-testid="stMetricLabel"] {font-size: .88rem !important; white-space: normal !important;}
+.hero-title {font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.3; word-break: keep-all;}
+.hero-sub {line-height: 1.65; word-break: keep-all;}
+.panel, .panel-soft {min-width: 0; overflow-wrap: anywhere;}
 .stApp {
     background: radial-gradient(ellipse at 50% 0%, #16294b 0%, #0b1427 48%, #080f1e 100%);
     color: #edf5ff;
@@ -127,11 +145,8 @@ with st.sidebar:
         label_visibility="collapsed"
     )
     st.divider()
-    st.markdown("**데이터 상태**")
-    st.success(f"NASA 실험 데이터 {len(data):,}개 행 연결됨")
-    st.caption("CSV를 매번 업로드하지 않아도 자동으로 불러옵니다.")
-    st.divider()
-    st.caption("※ 교육·탐구용 예측 서비스이며 실제 제품의 안전성을 보증하지 않습니다.")
+    st.caption("NASA 실험 데이터를 바탕으로 배터리 상태를 참고용으로 분석합니다.")
+    st.caption("※ 교육·탐구용 서비스이며 실제 제품의 안전성을 보증하지 않습니다.")
 
 st.markdown('<div class="eyebrow">SMART BATTERY HEALTH CHECK</div>', unsafe_allow_html=True)
 if page == "배터리 상태 확인":
