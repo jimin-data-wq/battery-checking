@@ -370,19 +370,21 @@ else:
     st.markdown("### 🔎 이 분석으로 알 수 있는 것과 알 수 없는 것")
     yes,no = st.columns(2)
     with yes:
-        st.markdown('<div class="panel">',unsafe_allow_html=True)
-        st.markdown("#### 알 수 있는 것")
-        st.write("- 반복 사용에 따라 방전 용량이 어떻게 달라지는지")
-        st.write("- 실험 데이터에서 온도와 SOH 사이에 어떤 관계가 나타나는지")
-        st.write("- 입력 조건에서 모델이 추정한 참고용 SOH")
-        st.markdown("</div>",unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("#### ✅ 알 수 있는 것")
+            st.markdown(
+                "- 반복 사용에 따라 방전 용량이 어떻게 달라지는지  \n"
+                "- 실험 데이터에서 온도와 SOH 사이에 어떤 관계가 나타나는지  \n"
+                "- 입력 조건에서 모델이 추정한 참고용 SOH"
+            )
     with no:
-        st.markdown('<div class="panel">',unsafe_allow_html=True)
-        st.markdown("#### 이 데이터만으로 알 수 없는 것")
-        st.write("- 시중 보조배터리 제품 각각의 정확한 실제 수명")
-        st.write("- 부풀음이나 화재가 발생할 확률")
-        st.write("- 모든 배터리 종류에 동일하게 적용되는 안전 기준")
-        st.markdown("</div>",unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("#### ⚠️ 이 데이터만으로 알 수 없는 것")
+            st.markdown(
+                "- 시중 보조배터리 제품 각각의 정확한 실제 수명  \n"
+                "- 부풀음이나 화재가 발생할 확률  \n"
+                "- 모든 배터리 종류에 동일하게 적용되는 안전 기준"
+            )
 
     st.markdown("### 📌 탐구 보고서에 활용할 핵심 해석")
     st.write(
