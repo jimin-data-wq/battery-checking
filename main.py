@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 from pathlib import Path
+from datetime import date
 
 # ---------------------------------------------------------
 # 기본 설정
@@ -158,7 +159,7 @@ with st.sidebar:
     st.caption("보조배터리 건강 상태 도우미")
     page = st.radio(
         "페이지 선택",
-        ["배터리 상태 확인", "NASA 데이터 분석", "LED 잔량 플래너"],
+        ["배터리 상태 확인", "NASA 데이터 분석", "LED 잔량 플래너", "배터리 변화 기록", "사용 유형별 외출 예측"],
         label_visibility="collapsed"
     )
     st.divider()
@@ -406,7 +407,182 @@ elif page == "NASA 데이터 분석":
     st.caption(f"참고: 학습 데이터 전체에서 계산한 평균 절대 오차(MAE)는 {train_mae:.2f}%입니다. 이는 학습에 사용한 데이터에서의 오차이므로, 새로운 제품에 대한 예측 정확도를 뜻하지 않습니다.")
 
 
-else:
+elif page == "배터리 변화 기록":
+    st.markdown('<div class="eyebrow">BATTERY HISTORY LAB</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-title">내 배터리 변화 기록실</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">날짜별 상태를 기록하고, 그래프와 히트맵으로 배터리 변화 흐름을 살펴보세요.</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="panel-soft">
+      <b>기록을 시작하기 전에</b><br>
+      <span class="muted">가장 신뢰할 수 있는 기록은 USB 전력 측정기로 실제 방전 용량을 측정한 값입니다.
+      측정기가 없다면 1페이지의 참고용 SOH 예측값을 기록할 수 있지만, 실제 측정값과 구분해서 해석해야 합니다.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    record_columns = ["날짜", "SOH(%)", "누적 충·방전(회)", "측정 온도(℃)", "기록 방식"]
+    if "battery_records" not in st.session_state:
+        st.session_state.battery_records = pd.DataFrame(columns=record_columns)
+
+    with st.expander("📥 이전에 저장한 기록 불러오기", expanded=False):
+        uploaded_history = st.file_uploader(
+            "이전에 내려받은 기록 CSV를 선택하세요.",
+            type=["csv"],
+            key="history_upload"
+        )
+        if uploaded_history is not None and st.button("기록 불러오기", key="import_history"):
+            try:
+                imported = pd.read_csv(uploaded_history)
+                if set(record_columns).issubset(imported.columns):
+                    imported = imported[record_columns].copy()
+                    imported["날짜"] = pd.to_datetime(imported["날짜"], errors="coerce").dt.date
+                    imported["SOH(%)"] = pd.to_numeric(imported["SOH(%)"], errors="coerce")
+                    imported["누적 충·방전(회)"] = pd.to_numeric(imported["누적 충·방전(회)"], errors="coerce")
+                    imported["측정 온도(℃)"] = pd.to_numeric(imported["측정 온도(℃)"], errors="coerce")
+                    imported = imported.dropna(subset=["날짜", "SOH(%)"])
+                    st.session_state.battery_records = pd.concat(
+                        [st.session_state.battery_records, imported], ignore_index=True
+                    ).drop_duplicates(subset=["날짜", "SOH(%)", "기록 방식"]).sort_values("날짜")
+                    st.success(f"{len(imported)}개의 기록을 불러왔어요.")
+                    st.rerun()
+                else:
+                    st.error("기록 파일의 열 구성이 달라요. 이 페이지에서 내려받은 CSV 파일을 사용해 주세요.")
+            except Exception as exc:
+                st.error(f"파일을 읽지 못했어요: {exc}")
+
+    st.markdown("### ① 오늘의 배터리 상태 기록")
+    with st.form("battery_record_form", clear_on_submit=False):
+        f1, f2 = st.columns(2)
+        with f1:
+            record_date = st.date_input("기록 날짜", value=date.today())
+            record_soh = st.number_input("배터리 건강 상태(SOH, %)", min_value=1.0, max_value=120.0, value=95.0, step=0.5,
+                                         help="USB 측정기로 확인한 용량 비율 또는 1페이지의 참고용 예측값을 입력하세요.")
+            record_source = st.selectbox("기록 방식", ["USB 측정기로 확인", "앱의 참고용 예측값", "제품 앱·기타 측정값"])
+        with f2:
+            record_cycles = st.number_input("누적 충·방전 횟수(대략)", min_value=0, max_value=10000, value=100, step=10)
+            record_temp = st.number_input("측정 당시 주변 온도(℃)", min_value=-10, max_value=60, value=25, step=1)
+        submitted = st.form_submit_button("오늘 기록 저장", use_container_width=True)
+
+    if submitted:
+        new_row = pd.DataFrame([{
+            "날짜": record_date,
+            "SOH(%)": float(record_soh),
+            "누적 충·방전(회)": int(record_cycles),
+            "측정 온도(℃)": int(record_temp),
+            "기록 방식": record_source
+        }])
+        st.session_state.battery_records = pd.concat(
+            [st.session_state.battery_records, new_row], ignore_index=True
+        ).sort_values("날짜").reset_index(drop=True)
+        st.success("배터리 기록을 저장했어요.")
+        st.rerun()
+
+    records = st.session_state.battery_records.copy()
+    if records.empty:
+        st.info("아직 저장된 기록이 없어요. 위에서 첫 기록을 추가하면 변화 그래프와 히트맵이 나타납니다.")
+    else:
+        records["날짜"] = pd.to_datetime(records["날짜"], errors="coerce")
+        records["SOH(%)"] = pd.to_numeric(records["SOH(%)"], errors="coerce")
+        records = records.dropna(subset=["날짜", "SOH(%)"]).sort_values("날짜")
+        latest = records.iloc[-1]
+        first = records.iloc[0]
+        change = float(latest["SOH(%)"] - first["SOH(%)"])
+        avg_soh = float(records["SOH(%)"].mean())
+
+        st.markdown("### ② 나의 배터리 요약")
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("최근 기록 SOH", f'{latest["SOH(%)"]:.1f}%')
+        k2.metric("첫 기록 대비 변화", f"{change:+.1f}%p")
+        k3.metric("기록 평균 SOH", f"{avg_soh:.1f}%")
+        k4.metric("누적 기록", f"{len(records)}회")
+
+        if len(records) >= 2:
+            if change <= -5:
+                st.warning("첫 기록과 비교해 SOH가 5%p 이상 낮아졌어요. 같은 조건에서 다시 측정해 추세를 확인하고, 이상 발열이나 외관 손상이 있으면 사용을 중단하세요.")
+            elif change < 0:
+                st.info("첫 기록보다 낮은 값이 관찰됐어요. 측정 환경 차이일 수 있으므로 같은 방법과 조건으로 기록을 더 쌓아보세요.")
+            else:
+                st.success("첫 기록보다 같거나 높은 값이에요. 측정 조건을 일정하게 유지하며 계속 기록해 보세요.")
+        else:
+            st.info("기록이 1개 있어요. 날짜를 달리해 3회 이상 기록하면 변화 추세를 비교하기 쉬워집니다.")
+
+        st.markdown("### ③ 배터리 건강 상태 변화")
+        st.caption("막대그래프는 각 기록의 SOH를, 선 그래프는 날짜에 따른 변화 흐름을 보여줍니다.")
+        bar_fig = go.Figure()
+        bar_colors = ["#55dfc5" if v >= 80 else "#ffc66d" if v >= 60 else "#ff7f91" for v in records["SOH(%)"]]
+        bar_fig.add_trace(go.Bar(
+            x=records["날짜"].dt.strftime("%Y-%m-%d"),
+            y=records["SOH(%)"],
+            marker_color=bar_colors,
+            text=[f"{v:.1f}%" for v in records["SOH(%)"]],
+            textposition="outside",
+            name="SOH"
+        ))
+        bar_fig.add_hline(y=80, line_dash="dash", line_color="#ffc66d", annotation_text="80% 참고선")
+        bar_fig.update_layout(
+            height=330, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#eaf2ff", yaxis_title="SOH(%)", xaxis_title="기록 날짜",
+            yaxis=dict(range=[0, max(110, float(records["SOH(%)"].max()) + 12)]),
+            margin=dict(l=10, r=10, t=30, b=10), showlegend=False
+        )
+        st.plotly_chart(bar_fig, use_container_width=True, config={"displayModeBar": False})
+
+        line_fig = go.Figure()
+        line_fig.add_trace(go.Scatter(
+            x=records["날짜"], y=records["SOH(%)"], mode="lines+markers",
+            line=dict(color="#59e2d0", width=3),
+            marker=dict(size=9, color="#8df0b4"),
+            fill="tozeroy", fillcolor="rgba(89,226,208,.10)",
+            name="SOH 변화"
+        ))
+        line_fig.add_hline(y=80, line_dash="dash", line_color="#ffc66d", annotation_text="80% 참고선")
+        line_fig.update_layout(
+            height=300, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#eaf2ff", xaxis_title="날짜", yaxis_title="SOH(%)",
+            margin=dict(l=10, r=10, t=25, b=10), showlegend=False
+        )
+        st.plotly_chart(line_fig, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown("### ④ 날짜별 상태 히트맵")
+        st.caption("각 칸은 해당 주·요일의 기록을 뜻합니다. 기록이 없는 날은 비어 있어요. 색이 밝을수록 기록된 SOH가 높습니다.")
+        heat = records.copy()
+        heat["요일"] = heat["날짜"].dt.dayofweek
+        heat["주차"] = heat["날짜"].dt.strftime("%Y-%W")
+        pivot = heat.pivot_table(index="요일", columns="주차", values="SOH(%)", aggfunc="mean")
+        pivot = pivot.reindex(index=range(7))
+        heat_fig = go.Figure(go.Heatmap(
+            z=pivot.values,
+            x=list(pivot.columns),
+            y=["월", "화", "수", "목", "금", "토", "일"],
+            colorscale=[[0, "#7b3348"], [0.5, "#d6a34d"], [1, "#39c9ad"]],
+            zmin=50, zmax=100,
+            colorbar=dict(title="SOH %"),
+            hovertemplate="주차: %{x}<br>요일: %{y}<br>SOH: %{z:.1f}%<extra></extra>"
+        ))
+        heat_fig.update_layout(
+            height=280, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#eaf2ff", xaxis_title="연도-주차", yaxis_title="요일",
+            margin=dict(l=10, r=10, t=20, b=10)
+        )
+        st.plotly_chart(heat_fig, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown("### ⑤ 기록 상세 및 백업")
+        display_records = records.copy()
+        display_records["날짜"] = display_records["날짜"].dt.strftime("%Y-%m-%d")
+        st.dataframe(display_records.sort_values("날짜", ascending=False), use_container_width=True, hide_index=True)
+        csv_bytes = display_records.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "기록 CSV 내려받기", data=csv_bytes, file_name="battery_care_history.csv",
+            mime="text/csv", use_container_width=True
+        )
+        if st.button("전체 기록 초기화", key="clear_battery_history"):
+            st.session_state.battery_records = pd.DataFrame(columns=record_columns)
+            st.rerun()
+
+    st.caption("기록은 현재 앱 세션에 저장됩니다. 브라우저 세션이 종료되거나 앱이 재시작되면 사라질 수 있으므로 CSV로 내려받아 백업하고, 다음 접속 때 다시 불러와 주세요. SOH는 실제 용량 측정값과 앱의 모델 추정값을 구분해 해석해야 합니다.")
+
+
+elif page == "LED 잔량 플래너":
     st.markdown('<div class="eyebrow">EVERYDAY POWER PLANNER</div>', unsafe_allow_html=True)
     st.markdown('<div class="hero-title">외출 전, 휴대폰 몇 번 충전할 수 있을까?</div>', unsafe_allow_html=True)
     st.markdown('<div class="hero-sub">보조배터리의 불빛 칸 수만 선택하면 대략적인 충전 횟수를 알려드려요.</div>', unsafe_allow_html=True)
@@ -518,6 +694,155 @@ else:
         st.checkbox("보조배터리 외관과 발열 확인", key="planner_safety")
     with c:
         st.checkbox("필요하면 출발 전 미리 충전", key="planner_topup")
+
+
+else:
+    st.markdown('<div class="eyebrow">SMART OUTING BATTERY FORECAST</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-title">내 사용 습관으로 외출 배터리 예측하기</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">어떤 앱을 얼마나 사용하는지 입력하면 화면 사용과 대기 시간을 나눠 배터리 소모량을 추정해요.</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="panel-soft">
+      <b>사용 방법</b><br>
+      <span class="muted">외출 시간, 출발 시 배터리 잔량, 앱별 예상 사용 시간을 입력하세요.
+      앱마다 다른 시간당 소모율을 적용해 예상 잔량을 계산합니다.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### ① 외출 조건")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        outing_time = st.slider("총 외출 시간", min_value=1, max_value=12, value=5, step=1, format="%d시간")
+    with c2:
+        starting_battery = st.slider("출발할 때 휴대폰 잔량", min_value=5, max_value=100, value=80, step=5, format="%d%%")
+    with c3:
+        brightness = st.slider("평균 화면 밝기", min_value=10, max_value=100, value=60, step=5, format="%d%%")
+
+    st.markdown("### ② 앱별 예상 사용 시간")
+    st.caption("외출 시간 안에서 각 앱을 사용할 시간을 입력해 주세요. 사용하지 않을 앱은 0시간으로 두면 됩니다.")
+    app_rates = {
+        "메신저·문자": 4.0,
+        "인터넷·검색": 7.0,
+        "SNS·짧은 영상": 10.0,
+        "동영상 시청": 13.0,
+        "게임": 20.0,
+        "지도·내비게이션": 16.0,
+        "카메라·동영상 촬영": 18.0,
+        "영상 통화": 17.0,
+        "음악 감상": 5.0
+    }
+    app_hours = {}
+    app_names = list(app_rates.keys())
+    left_apps, right_apps = st.columns(2)
+    for index, app_name in enumerate(app_names):
+        target_col = left_apps if index % 2 == 0 else right_apps
+        with target_col:
+            app_hours[app_name] = st.number_input(
+                f"{app_name} (시간)",
+                min_value=0.0, max_value=float(outing_time), value=0.0, step=0.5,
+                key=f"app_time_{index}"
+            )
+
+    active_hours = sum(app_hours.values())
+    if active_hours > outing_time:
+        st.error(f"앱 사용 시간 합계가 외출 시간({outing_time}시간)을 넘었어요. 현재 입력 합계는 {active_hours:.1f}시간입니다. 사용 시간을 조정해 주세요.")
+        st.stop()
+
+    idle_hours = outing_time - active_hours
+    brightness_factor = 0.70 + (brightness / 100.0) * 0.60
+    idle_rate = 1.5
+    consumption_by_app = {
+        name: hours * app_rates[name] * brightness_factor
+        for name, hours in app_hours.items() if hours > 0
+    }
+    if idle_hours > 0:
+        consumption_by_app["화면 꺼짐·대기"] = idle_hours * idle_rate
+
+    total_consumption = sum(consumption_by_app.values())
+    remaining_battery = max(0.0, starting_battery - total_consumption)
+    estimated_raw = starting_battery - total_consumption
+
+    st.markdown("### ③ 예상 배터리 변화")
+    result_cols = st.columns([1.05, 1.4])
+    with result_cols[0]:
+        st.markdown(
+            f"""<div class="panel" style="text-align:center;padding:22px 14px;">
+            <div class="small-label">외출 종료 시 예상 잔량</div>
+            <div style="font-size:2.65rem;font-weight:800;color:#52e4ce;line-height:1.25;">{remaining_battery:.0f}%</div>
+            <div style="color:#dce9f8;font-size:.9rem;margin-top:8px;">출발 {starting_battery}% → 예상 {remaining_battery:.0f}%</div>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        st.metric("예상 소모량", f"{total_consumption:.1f}%")
+        if estimated_raw < 0:
+            st.warning("예측상 외출 도중 배터리가 모두 소모될 수 있어요. 보조배터리를 준비하는 것이 좋아요.")
+        elif remaining_battery < 20:
+            st.warning("외출 종료 전에 잔량이 20% 아래로 내려갈 수 있어요. 보조배터리를 챙기는 것을 추천해요.")
+        elif remaining_battery < 40:
+            st.info("배터리가 넉넉하지 않을 수 있어요. 화면 밝기를 낮추거나 사용 시간을 줄이면 도움이 됩니다.")
+        else:
+            st.success("입력한 사용 계획에서는 배터리가 비교적 여유로울 것으로 예상돼요.")
+
+    with result_cols[1]:
+        gauge_color = "#55dfc5" if remaining_battery >= 40 else "#ffc66d" if remaining_battery >= 20 else "#ff7f91"
+        battery_gauge = go.Figure(go.Indicator(
+            mode="gauge+number", value=remaining_battery,
+            number={"suffix": "%", "font": {"size": 34, "color": "#f4f8ff"}},
+            gauge={
+                "axis": {"range": [0, 100], "tickcolor": "#a9bddb"},
+                "bar": {"color": gauge_color},
+                "bgcolor": "rgba(255,255,255,.05)",
+                "borderwidth": 0,
+                "steps": [
+                    {"range": [0, 20], "color": "rgba(255,105,125,.20)"},
+                    {"range": [20, 40], "color": "rgba(255,198,109,.18)"},
+                    {"range": [40, 100], "color": "rgba(89,226,179,.14)"}
+                ]
+            }
+        ))
+        battery_gauge.update_layout(
+            height=230, margin=dict(l=12, r=12, t=10, b=5),
+            paper_bgcolor="rgba(0,0,0,0)", font_color="#eaf2ff"
+        )
+        st.plotly_chart(battery_gauge, use_container_width=True, config={"displayModeBar": False})
+
+    st.markdown("### ④ 어떤 사용이 배터리를 많이 소모할까요?")
+    if consumption_by_app:
+        usage_fig = go.Figure(go.Bar(
+            x=list(consumption_by_app.values()),
+            y=list(consumption_by_app.keys()),
+            orientation="h",
+            marker=dict(
+                color=list(consumption_by_app.values()),
+                colorscale=[[0, "#3f9dba"], [0.55, "#55dfc5"], [1, "#ffc66d"]]
+            ),
+            text=[f"{v:.1f}%" for v in consumption_by_app.values()],
+            textposition="outside"
+        ))
+        usage_fig.update_layout(
+            height=max(260, 42 * len(consumption_by_app)),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#eaf2ff", xaxis_title="예상 배터리 소모 기여도(%p)",
+            yaxis_title="", margin=dict(l=10, r=35, t=15, b=10),
+            showlegend=False
+        )
+        st.plotly_chart(usage_fig, use_container_width=True, config={"displayModeBar": False})
+    else:
+        st.info("앱 사용 시간을 입력하면 어떤 활동이 배터리를 많이 소모하는지 그래프로 보여드려요.")
+
+    st.markdown("### ⑤ 배터리를 아끼는 맞춤 팁")
+    if app_hours.get("게임", 0) > 0 or app_hours.get("동영상 시청", 0) > 0 or app_hours.get("영상 통화", 0) > 0:
+        st.markdown('<div class="panel-soft"><b>화면·프로세서 사용 줄이기</b><br><span class="muted">게임, 영상, 영상 통화는 화면과 처리 장치를 오래 사용하므로 밝기를 낮추고 필요하지 않을 때 앱을 종료해 보세요.</span></div>', unsafe_allow_html=True)
+    if app_hours.get("지도·내비게이션", 0) > 0:
+        st.markdown('<div class="panel-soft"><b>내비게이션 사용 줄이기</b><br><span class="muted">화면을 계속 켜두지 않도록 음성 안내를 활용하고, 목적지 경로를 미리 확인하면 도움이 됩니다.</span></div>', unsafe_allow_html=True)
+    if brightness >= 80:
+        st.markdown('<div class="panel-soft"><b>화면 밝기 낮추기</b><br><span class="muted">평균 밝기가 높은 편이에요. 실내에서는 자동 밝기나 낮은 밝기를 활용해 보세요.</span></div>', unsafe_allow_html=True)
+    if not any(app_hours.values()) and brightness < 80:
+        st.markdown('<div class="panel-soft"><b>대기 중 전력 관리</b><br><span class="muted">사용하지 않는 앱의 백그라운드 새로고침과 불필요한 위치 사용을 줄이면 도움이 될 수 있어요.</span></div>', unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown("**예측 모델의 가정과 한계**")
+        st.caption("앱별 시간당 소모율은 일반적인 사용 상황을 가정한 참고용 추정치이며 특정 스마트폰에서 직접 측정한 값이 아닙니다. 기기 성능, 통신 상태, 신호 세기, 배터리 노후도, 온도, 화면 주사율 등에 따라 실제 소모량은 달라집니다. 앱 사용 시간은 서로 겹치지 않게 입력해 주세요.")
 
 st.markdown("---")
 st.markdown("<div style='text-align:center;color:#8299bb;font-size:.8rem'>BATTERY CARE · NASA 실험 데이터 기반 교육용 프로젝트</div>",unsafe_allow_html=True)
