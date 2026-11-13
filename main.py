@@ -86,6 +86,23 @@ div[data-testid="stMetricValue"] {color:#f5fbff;}
 }
 hr {border-color:rgba(142,181,235,.18);}
 [data-testid="stDataFrame"] {background:#10203a;}
+
+/* 경고창은 밝은 배경 + 어두운 글씨로 고정해 가독성 확보 */
+[data-testid="stAlert"] {
+    background: #fff3cd !important;
+    border: 1px solid #e7c66b !important;
+    border-radius: 14px !important;
+}
+[data-testid="stAlert"] *,
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span,
+[data-testid="stAlert"] div {
+    color: #49370a !important;
+}
+[data-testid="stAlert"] svg {
+    color: #8a6500 !important;
+    fill: #8a6500 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -211,10 +228,16 @@ if page == "배터리 상태 확인":
             st.image(str(IMAGE_PATH), use_container_width=True)
         else:
             st.markdown("<div style='font-size:7rem;text-align:center;padding:2rem;'>🔋</div>", unsafe_allow_html=True)
-        st.markdown(f'<div class="panel {state_class}" style="padding:18px 14px;border-radius:18px;">', unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:1.25rem;font-weight:800'>{state_icon} {state}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:1rem;margin-top:7px'>{message}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='muted' style='margin-top:9px'>{advice}</div>", unsafe_allow_html=True)
+        # 상태 카드의 HTML은 하나의 markdown 블록 안에서 열고 닫아
+        # 내용 없는 빈 초록색 칸이 따로 렌더링되는 현상을 방지합니다.
+        st.markdown(
+            f'''<div class="panel {state_class}" style="padding:18px 18px;border-radius:18px;">
+                <div style="font-size:1.25rem;font-weight:800;line-height:1.45;color:#f5fbff;">{state_icon} {state}</div>
+                <div style="font-size:1rem;line-height:1.65;margin-top:8px;color:#f5fbff;">{message}</div>
+                <div style="font-size:.9rem;line-height:1.65;margin-top:9px;color:#e2edf8;">{advice}</div>
+            </div>''',
+            unsafe_allow_html=True
+        )
 
     with right:
         st.markdown("#### 배터리 건강 점수")
@@ -385,61 +408,80 @@ elif page == "NASA 데이터 분석":
 
 else:
     st.markdown('<div class="eyebrow">EVERYDAY POWER PLANNER</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero-title">외출 전, 배터리 얼마나 남았을까?</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero-sub">보조배터리의 LED 불빛 칸을 선택하면 휴대폰을 몇 번 충전할 수 있을지 간편하게 계산해요.</div>', unsafe_allow_html=True)
-    st.markdown("### ① 보조배터리 LED 잔량 선택")
-    st.caption("4칸 LED 표시등 기준의 대략적인 추정치예요. 제품마다 표시 기준은 달라요.")
+    st.markdown('<div class="hero-title">외출 전, 휴대폰 몇 번 충전할 수 있을까?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">보조배터리의 불빛 칸 수만 선택하면 대략적인 충전 횟수를 알려드려요.</div>', unsafe_allow_html=True)
+
+    st.markdown("### ① 보조배터리 불빛 칸 수")
+    st.caption("현재 켜져 있는 LED 칸을 선택해 주세요. 4칸 표시등 기준의 대략적인 계산이에요.")
     if "led_level" not in st.session_state:
         st.session_state.led_level = 3
+
     led_cols = st.columns(4)
     for idx, col in enumerate(led_cols, start=1):
         with col:
             lit = idx <= st.session_state.led_level
             color = "#52e4ce" if lit else "#43536b"
-            st.markdown(f"""<div style="background:rgba(22,39,66,.8);border:1px solid #60738f;border-radius:16px;padding:17px 5px;text-align:center;">
-            <div style="width:22px;height:22px;border-radius:50%;background:{color};margin:0 auto 9px auto;box-shadow:0 0 15px {color if lit else 'transparent'};"></div>
-            <div style="font-size:.82rem;color:#c8d8ef;">{idx}칸</div></div>""", unsafe_allow_html=True)
+            st.markdown(
+                f"""<div style="background:rgba(22,39,66,.8);border:1px solid #60738f;border-radius:16px;padding:17px 5px;text-align:center;">
+                <div style="width:22px;height:22px;border-radius:50%;background:{color};margin:0 auto 9px auto;box-shadow:0 0 15px {color if lit else 'transparent'};"></div>
+                <div style="font-size:.82rem;color:#c8d8ef;">{idx}칸</div></div>""",
+                unsafe_allow_html=True
+            )
             if st.button(f"{idx}칸 선택", key=f"led_{idx}", use_container_width=True):
                 st.session_state.led_level = idx
                 st.rerun()
+
     level = st.session_state.led_level
-    approx_percent = {1:12.5, 2:37.5, 3:62.5, 4:87.5}[level]
-    st.markdown(f"""<div class="panel" style="text-align:center;margin-top:12px;">
-    <div class="small-label">선택한 LED 잔량 · 대략적인 추정</div>
-    <div style="font-size:2.5rem;font-weight:800;color:#52e4ce;">{approx_percent:.0f}% 내외</div>
-    <div class="muted">{level}칸 점등 · 실제 잔량은 제품별 기준에 따라 달라질 수 있어요.</div></div>""", unsafe_allow_html=True)
+    led_ratio = {1: 0.25, 2: 0.50, 3: 0.75, 4: 1.00}[level]
+    approx_percent = int(led_ratio * 100)
 
-    st.markdown("### ② 내 기기와 보조배터리 정보")
-    left, right = st.columns(2, gap="large")
-    with left:
-        powerbank_capacity = st.number_input("보조배터리 용량 (mAh)", 1000, 50000, 20000, 1000)
-        phone_capacity = st.number_input("휴대폰 배터리 용량 (mAh)", 1000, 10000, 5000, 100)
-    with right:
-        efficiency = st.slider("충전 효율 가정 (%)", 60, 95, 80,
-            help="전압 변환과 발열 등으로 실제 전달되는 에너지는 줄어들어요.")
-        planned_charges = st.number_input("외출 중 필요한 충전 횟수", 1, 10, 2, 1)
+    st.markdown("### ② 보조배터리 크기")
+    size_choice = st.radio(
+        "제품에 적힌 용량을 보고 가장 가까운 항목을 골라 주세요.",
+        ["작은 편 · 10,000mAh", "일반적인 크기 · 20,000mAh", "큰 편 · 30,000mAh"],
+        index=1,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    powerbank_capacity = {
+        "작은 편 · 10,000mAh": 10000,
+        "일반적인 크기 · 20,000mAh": 20000,
+        "큰 편 · 30,000mAh": 30000
+    }[size_choice]
 
-    usable_energy = powerbank_capacity * (level / 4) * (efficiency / 100)
-    charge_count = usable_energy / phone_capacity
-    full_charges = int(usable_energy // phone_capacity)
-    st.markdown("### ③ 외출 충전 계획")
-    c1,c2,c3 = st.columns(3)
-    c1.metric("예상 잔량", f"{approx_percent:.0f}% 내외")
-    c2.metric("휴대폰 충전 가능량", f"{charge_count:.1f}회")
-    c3.metric("완충 기준 횟수", f"{full_charges}회")
-    if charge_count >= planned_charges:
-        st.success(f"현재 조건에서는 필요한 {planned_charges}회 충전을 대략 감당할 수 있을 것으로 보여요.")
+    # 일반적인 스마트폰(약 5,000mAh)과 평균적인 에너지 손실을 가정한 참고치
+    estimated_charges = powerbank_capacity * led_ratio * 0.70 / 5000
+    full_charge_count = int(estimated_charges)
+    remainder = estimated_charges - full_charge_count
+
+    st.markdown("### ③ 예상 충전 횟수")
+    st.markdown(
+        f"""<div class="panel" style="text-align:center;padding:24px 18px;margin-top:8px;">
+        <div class="small-label">휴대폰 완충 기준 예상 횟수</div>
+        <div style="font-size:2.8rem;font-weight:800;line-height:1.3;color:#52e4ce;">약 {estimated_charges:.1f}회</div>
+        <div style="font-size:1rem;color:#e2edf8;margin-top:6px;">현재 LED {level}칸 · 잔량 약 {approx_percent}% 기준</div>
+        </div>""",
+        unsafe_allow_html=True
+    )
+    if estimated_charges < 1:
+        st.info("휴대폰을 한 번 완전히 충전하기에는 부족할 수 있어요. 가능하면 외출 전에 보조배터리를 더 충전해 주세요.")
+    elif estimated_charges < 2:
+        st.success("휴대폰을 약 한 번 충전할 수 있는 양이에요. 사용 중에는 충전 가능 횟수가 줄어들 수 있어요.")
     else:
-        st.warning(f"필요한 충전 횟수({planned_charges}회)에 비해 여유가 부족할 수 있어요. 출발 전에 더 충전하는 것을 고려하세요.")
+        st.success(f"휴대폰을 대략 {full_charge_count}번 완충할 수 있는 양이에요.")
+
     with st.container(border=True):
-        st.markdown("#### 계산은 이렇게 했어요")
-        st.write("보조배터리 용량 × LED 잔량 비율 × 충전 효율 ÷ 휴대폰 배터리 용량")
-        st.caption("LED 4칸이 정확히 25%씩을 뜻하지 않는 제품도 있습니다. 정격 용량·전압 변환·휴대폰 사용 중 소비 전력에 따라 실제 충전 횟수는 달라지므로 참고용으로 이용하세요.")
+        st.markdown("**참고해 주세요**")
+        st.caption("일반적인 스마트폰과 보조배터리 용량을 기준으로 계산한 대략적인 값이에요. 휴대폰 기종, 보조배터리 제품, 사용 중 화면 켜짐 등에 따라 실제 횟수는 달라질 수 있어요.")
+
     st.markdown("### 외출 전 간단 체크")
-    a,b,c = st.columns(3)
-    with a: st.checkbox("충전 케이블 챙기기", key="planner_cable")
-    with b: st.checkbox("보조배터리 외관과 발열 확인", key="planner_safety")
-    with c: st.checkbox("필요하면 출발 전 미리 충전", key="planner_topup")
+    a, b, c = st.columns(3)
+    with a:
+        st.checkbox("충전 케이블 챙기기", key="planner_cable")
+    with b:
+        st.checkbox("보조배터리 외관과 발열 확인", key="planner_safety")
+    with c:
+        st.checkbox("필요하면 출발 전 미리 충전", key="planner_topup")
 
 st.markdown("---")
 st.markdown("<div style='text-align:center;color:#8299bb;font-size:.8rem'>BATTERY CARE · NASA 실험 데이터 기반 교육용 프로젝트</div>",unsafe_allow_html=True)
