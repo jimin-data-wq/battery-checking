@@ -455,24 +455,60 @@ else:
     remainder = estimated_charges - full_charge_count
 
     st.markdown("### ③ 예상 충전 횟수")
+    display_charges = max(0, round(estimated_charges))
     st.markdown(
         f"""<div class="panel" style="text-align:center;padding:24px 18px;margin-top:8px;">
         <div class="small-label">휴대폰 완충 기준 예상 횟수</div>
-        <div style="font-size:2.8rem;font-weight:800;line-height:1.3;color:#52e4ce;">약 {estimated_charges:.1f}회</div>
+        <div style="font-size:2.8rem;font-weight:800;line-height:1.3;color:#52e4ce;">약 {display_charges}회</div>
         <div style="font-size:1rem;color:#e2edf8;margin-top:6px;">현재 LED {level}칸 · 잔량 약 {approx_percent}% 기준</div>
         </div>""",
         unsafe_allow_html=True
     )
-    if estimated_charges < 1:
-        st.info("휴대폰을 한 번 완전히 충전하기에는 부족할 수 있어요. 가능하면 외출 전에 보조배터리를 더 충전해 주세요.")
-    elif estimated_charges < 2:
-        st.success("휴대폰을 약 한 번 충전할 수 있는 양이에요. 사용 중에는 충전 가능 횟수가 줄어들 수 있어요.")
+
+    st.markdown("### ④ 외출 시간에 맞춰 준비하기")
+    st.caption("외출 시간과 현재 휴대폰 잔량을 선택하면 보조배터리를 더 충전해야 할지 알려드려요.")
+    outing_hours = st.radio(
+        "얼마나 외출할 예정인가요?",
+        ["2시간", "5시간", "8시간"],
+        index=1,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    outing_hour_value = {"2시간": 2, "5시간": 5, "8시간": 8}[outing_hours]
+    phone_battery = st.slider(
+        "현재 휴대폰 배터리 잔량",
+        min_value=0,
+        max_value=100,
+        value=60,
+        step=5,
+        format="%d%%"
+    )
+
+    # 평균적인 사용 상황을 가정한 단순 참고 계산: 시간당 약 10% 소모
+    expected_phone_use = outing_hour_value * 10
+    expected_phone_left = max(0, phone_battery - expected_phone_use)
+    topup_needed = max(0, expected_phone_use - phone_battery)
+    powerbank_available_percent = estimated_charges * 100
+
+    if topup_needed == 0:
+        st.success(
+            f"현재 잔량으로도 {outing_hours} 외출을 버틸 가능성이 높아요. "
+            f"일반적인 사용 기준으로 예상 잔량은 약 {expected_phone_left}%예요."
+        )
+    elif powerbank_available_percent >= topup_needed:
+        st.success(
+            f"{outing_hours} 외출 중 배터리가 부족해질 수 있지만, "
+            "현재 보조배터리 잔량으로 보충할 수 있을 것으로 예상돼요."
+        )
     else:
-        st.success(f"휴대폰을 대략 {full_charge_count}번 완충할 수 있는 양이에요.")
+        st.warning(
+            f"{outing_hours} 외출에는 보조배터리 잔량이 부족할 수 있어요. "
+            "출발 전에 보조배터리를 더 충전하거나 충전 케이블을 챙기는 것을 추천해요."
+        )
 
     with st.container(border=True):
-        st.markdown("**참고해 주세요**")
-        st.caption("일반적인 스마트폰과 보조배터리 용량을 기준으로 계산한 대략적인 값이에요. 휴대폰 기종, 보조배터리 제품, 사용 중 화면 켜짐 등에 따라 실제 횟수는 달라질 수 있어요.")
+        st.markdown("**계산 기준과 참고 사항**")
+        st.caption("휴대폰 배터리가 평균적으로 시간당 약 10% 줄어든다고 가정한 간단한 참고 계산이에요. 게임·영상 촬영·내비게이션 사용이나 휴대폰 기종에 따라 실제 소모량은 크게 달라질 수 있어요. 보조배터리 충전 횟수 역시 제품과 변환 손실에 따라 달라집니다.")
 
     st.markdown("### 외출 전 간단 체크")
     a, b, c = st.columns(3)
